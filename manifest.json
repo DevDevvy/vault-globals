@@ -1,0 +1,10 @@
+{
+  "id": "vault-globals",
+  "name": "Vault Globals",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Vault-wide global variables for inline text and code snippets using a single Globals.md file.",
+  "author": "Randall Thomas",
+  "authorUrl": "https://randallthomastech.com",
+  "isDesktopOnly": false
+}
