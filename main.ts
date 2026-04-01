@@ -8,7 +8,7 @@ import {
   TAbstractFile,
   TFile,
   debounce,
-  parseYaml
+  parseYaml,
 } from "obsidian";
 import {
   Decoration,
@@ -16,7 +16,7 @@ import {
   EditorView,
   ViewPlugin,
   ViewUpdate,
-  WidgetType
+  WidgetType,
 } from "@codemirror/view";
 import { Extension, RangeSetBuilder } from "@codemirror/state";
 
@@ -33,7 +33,7 @@ const DEFAULT_SETTINGS: VaultGlobalsSettings = {
   globalsFilePath: "Globals.md",
   tokenPrefix: "{{g:",
   tokenSuffix: "}}",
-  maxResolveDepth: 10
+  maxResolveDepth: 10,
 };
 
 export default class VaultGlobalsPlugin extends Plugin {
@@ -45,10 +45,14 @@ export default class VaultGlobalsPlugin extends Plugin {
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
-    this.refreshEditorsDebounced = debounce(() => {
-      this.revision += 1;
-      this.refreshAllOpenMarkdownViews();
-    }, 150, true);
+    this.refreshEditorsDebounced = debounce(
+      () => {
+        this.revision += 1;
+        this.refreshAllOpenMarkdownViews();
+      },
+      150,
+      true,
+    );
 
     await this.reloadGlobals();
 
@@ -65,15 +69,17 @@ export default class VaultGlobalsPlugin extends Plugin {
       name: "Reload globals from Globals.md",
       callback: async () => {
         await this.reloadGlobals(true);
-      }
+      },
     });
 
     this.addCommand({
       id: "insert-global-token",
       name: "Insert global token",
       editorCallback: (editor) => {
-        editor.replaceSelection(`${this.settings.tokenPrefix}local_ip${this.settings.tokenSuffix}`);
-      }
+        editor.replaceSelection(
+          `${this.settings.tokenPrefix}local_ip${this.settings.tokenSuffix}`,
+        );
+      },
     });
 
     this.registerEvent(
@@ -81,15 +87,21 @@ export default class VaultGlobalsPlugin extends Plugin {
         if (this.isGlobalsFile(file)) {
           await this.reloadGlobals();
         }
-      })
+      }),
     );
 
     this.registerEvent(
-      this.app.vault.on("rename", async (file: TAbstractFile, oldPath: string) => {
-        if (this.isGlobalsFile(file) || oldPath === this.settings.globalsFilePath) {
-          await this.reloadGlobals();
-        }
-      })
+      this.app.vault.on(
+        "rename",
+        async (file: TAbstractFile, oldPath: string) => {
+          if (
+            this.isGlobalsFile(file) ||
+            oldPath === this.settings.globalsFilePath
+          ) {
+            await this.reloadGlobals();
+          }
+        },
+      ),
     );
 
     this.registerEvent(
@@ -99,7 +111,7 @@ export default class VaultGlobalsPlugin extends Plugin {
           this.triggerRefresh();
           new Notice("Vault Globals: globals file deleted. Globals cleared.");
         }
-      })
+      }),
     );
   }
 
@@ -112,7 +124,11 @@ export default class VaultGlobalsPlugin extends Plugin {
   }
 
   isGlobalsFile(file: TAbstractFile | null): file is TFile {
-    return Boolean(file && file instanceof TFile && file.path === this.settings.globalsFilePath);
+    return Boolean(
+      file &&
+      file instanceof TFile &&
+      file.path === this.settings.globalsFilePath,
+    );
   }
 
   getRevision(): number {
@@ -121,17 +137,24 @@ export default class VaultGlobalsPlugin extends Plugin {
 
   replaceTokens(input: string, source?: GlobalsMap): string {
     const globals = source ?? this.globals;
-    return input.replace(this.tokenRegex(), (match, key: string) => globals[key] ?? match);
+    return input.replace(
+      this.tokenRegex(),
+      (match, key: string) => globals[key] ?? match,
+    );
   }
 
   async reloadGlobals(showNotice = false): Promise<void> {
-    const file = this.app.vault.getAbstractFileByPath(this.settings.globalsFilePath);
+    const file = this.app.vault.getAbstractFileByPath(
+      this.settings.globalsFilePath,
+    );
 
     if (!(file instanceof TFile)) {
       this.globals = {};
       this.triggerRefresh();
       if (showNotice) {
-        new Notice(`Vault Globals: could not find ${this.settings.globalsFilePath}`);
+        new Notice(
+          `Vault Globals: could not find ${this.settings.globalsFilePath}`,
+        );
       }
       return;
     }
@@ -143,7 +166,9 @@ export default class VaultGlobalsPlugin extends Plugin {
       this.triggerRefresh();
 
       if (showNotice) {
-        new Notice(`Vault Globals: loaded ${Object.keys(this.globals).length} globals.`);
+        new Notice(
+          `Vault Globals: loaded ${Object.keys(this.globals).length} globals.`,
+        );
       }
     } catch (error) {
       console.error("Vault Globals: failed to reload globals", error);
@@ -161,7 +186,11 @@ export default class VaultGlobalsPlugin extends Plugin {
     const result: GlobalsMap = {};
     for (const [key, value] of Object.entries(yaml)) {
       if (value == null) continue;
-      if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      if (
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
         result[key] = String(value);
       }
     }
@@ -199,7 +228,10 @@ export default class VaultGlobalsPlugin extends Plugin {
   }
 
   private containsToken(value: string): boolean {
-    return value.includes(this.settings.tokenPrefix) && value.includes(this.settings.tokenSuffix);
+    return (
+      value.includes(this.settings.tokenPrefix) &&
+      value.includes(this.settings.tokenSuffix)
+    );
   }
 
   private replaceTokensInRenderedElement(root: HTMLElement): void {
@@ -208,7 +240,11 @@ export default class VaultGlobalsPlugin extends Plugin {
 
     while (walker.nextNode()) {
       const node = walker.currentNode;
-      if (node instanceof Text && node.nodeValue && this.containsToken(node.nodeValue)) {
+      if (
+        node instanceof Text &&
+        node.nodeValue &&
+        this.containsToken(node.nodeValue)
+      ) {
         nodes.push(node);
       }
     }
@@ -233,7 +269,11 @@ export default class VaultGlobalsPlugin extends Plugin {
         cm?.dispatch({});
       }
 
-      const previewMode = (view as MarkdownView & { previewMode?: { rerender?: (force?: boolean) => void } }).previewMode;
+      const previewMode = (
+        view as MarkdownView & {
+          previewMode?: { rerender?: (force?: boolean) => void };
+        }
+      ).previewMode;
       previewMode?.rerender?.(true);
     }
   }
@@ -298,7 +338,7 @@ export default class VaultGlobalsPlugin extends Plugin {
               // Skip tokens that overlap any cursor/selection so the raw
               // text remains visible and editable when the user clicks in.
               const overlapsSelection = selection.ranges.some(
-                (r) => r.from <= end && r.to >= start
+                (r) => r.from <= end && r.to >= start,
               );
               if (overlapsSelection) continue;
 
@@ -308,8 +348,8 @@ export default class VaultGlobalsPlugin extends Plugin {
                 end,
                 Decoration.replace({
                   widget: new GlobalTokenWidget(resolved),
-                  inclusive: false
-                })
+                  inclusive: false,
+                }),
               );
             }
           }
@@ -318,8 +358,8 @@ export default class VaultGlobalsPlugin extends Plugin {
         }
       },
       {
-        decorations: (value) => value.decorations
-      }
+        decorations: (value) => value.decorations,
+      },
     );
   }
 }
@@ -340,7 +380,9 @@ class VaultGlobalsSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Globals file path")
-      .setDesc("Path to the markdown file that contains YAML frontmatter globals.")
+      .setDesc(
+        "Path to the markdown file that contains YAML frontmatter globals.",
+      )
       .addText((text) => {
         text
           .setPlaceholder("Globals.md")
@@ -356,34 +398,41 @@ class VaultGlobalsSettingTab extends PluginSettingTab {
       .setName("Token prefix")
       .setDesc("Default: {{g:")
       .addText((text) => {
-        text.setValue(this.plugin.settings.tokenPrefix).onChange(async (value: string) => {
-          this.plugin.settings.tokenPrefix = value || "{{g:";
-          await this.plugin.saveSettings();
-          this.plugin.triggerRefresh();
-        });
+        text
+          .setValue(this.plugin.settings.tokenPrefix)
+          .onChange(async (value: string) => {
+            this.plugin.settings.tokenPrefix = value || "{{g:";
+            await this.plugin.saveSettings();
+            this.plugin.triggerRefresh();
+          });
       });
 
     new Setting(containerEl)
       .setName("Token suffix")
       .setDesc("Default: }}")
       .addText((text) => {
-        text.setValue(this.plugin.settings.tokenSuffix).onChange(async (value: string) => {
-          this.plugin.settings.tokenSuffix = value || "}}";
-          await this.plugin.saveSettings();
-          this.plugin.triggerRefresh();
-        });
+        text
+          .setValue(this.plugin.settings.tokenSuffix)
+          .onChange(async (value: string) => {
+            this.plugin.settings.tokenSuffix = value || "}}";
+            await this.plugin.saveSettings();
+            this.plugin.triggerRefresh();
+          });
       });
 
     new Setting(containerEl)
       .setName("Nested resolution depth")
       .setDesc("How many passes to use when globals reference other globals.")
       .addText((text) => {
-        text.setValue(String(this.plugin.settings.maxResolveDepth)).onChange(async (value: string) => {
-          const parsed = Number(value);
-          this.plugin.settings.maxResolveDepth = Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
-          await this.plugin.saveSettings();
-          await this.plugin.reloadGlobals();
-        });
+        text
+          .setValue(String(this.plugin.settings.maxResolveDepth))
+          .onChange(async (value: string) => {
+            const parsed = Number(value);
+            this.plugin.settings.maxResolveDepth =
+              Number.isFinite(parsed) && parsed > 0 ? parsed : 10;
+            await this.plugin.saveSettings();
+            await this.plugin.reloadGlobals();
+          });
       });
 
     const example = containerEl.createDiv();
@@ -394,8 +443,8 @@ class VaultGlobalsSettingTab extends PluginSettingTab {
         "Ping {{g:local_ip}}",
         "",
         "Code:",
-        "curl http://{{g:local_ip}}:{{g:api_port}}/health"
-      ].join("\n")
+        "curl http://{{g:local_ip}}:{{g:api_port}}/health",
+      ].join("\n"),
     });
   }
 }
