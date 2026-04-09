@@ -63,6 +63,7 @@ export default class VaultGlobalsPlugin extends Plugin {
 
     this.registerMarkdownPostProcessor((element: HTMLElement) => {
       this.replaceTokensInRenderedElement(element);
+      this.addCopyButtonsToCodeBlocks(element);
     });
 
     this.registerEditorExtension(this.buildEditorExtension());
@@ -292,6 +293,41 @@ export default class VaultGlobalsPlugin extends Plugin {
 
     for (const node of nodes) {
       node.nodeValue = this.replaceTokens(node.nodeValue ?? "");
+    }
+  }
+
+  private addCopyButtonsToCodeBlocks(root: HTMLElement): void {
+    const preBlocks = root.querySelectorAll<HTMLElement>("pre");
+
+    for (const pre of Array.from(preBlocks)) {
+      // Avoid adding a second button if the post-processor runs again on the same block.
+      if (pre.querySelector(".vault-globals-copy-btn")) continue;
+
+      const btn = document.createElement("button");
+      btn.className = "vault-globals-copy-btn";
+      btn.setAttribute("aria-label", "Copy code");
+      btn.textContent = "Copy";
+
+      btn.addEventListener("click", (evt) => {
+        evt.stopPropagation();
+        const code = pre.querySelector("code");
+        // Resolve any global tokens that may appear inside the code block.
+        const text = this.replaceTokens(code?.innerText ?? pre.innerText);
+        navigator.clipboard.writeText(text).then(() => {
+          btn.textContent = "Copied!";
+          btn.setAttribute("aria-label", "Code copied");
+          btn.classList.add("vault-globals-copy-btn--copied");
+          setTimeout(() => {
+            btn.textContent = "Copy";
+            btn.setAttribute("aria-label", "Copy code");
+            btn.classList.remove("vault-globals-copy-btn--copied");
+          }, 2000);
+        }).catch(() => {
+          new Notice("Vault Globals: failed to copy to clipboard.");
+        });
+      });
+
+      pre.appendChild(btn);
     }
   }
 
