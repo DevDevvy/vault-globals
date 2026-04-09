@@ -48,10 +48,13 @@ local_ip: 192.168.1.23
 api_port: 3000
 api_base: http://{{g:local_ip}}:{{g:api_port}}
 lab_domain: dev.local
+username: randall
 ---
-```
 
-_Note: make sure the first --- is on the very first line of the file and has no spaces after it or it will parse as a divider instead of YAML frontmatter_
+# Globals
+
+Edit the YAML values above.
+```
 
 ## Token format
 
@@ -119,7 +122,7 @@ When `Globals.md` is changed:
 Clone the repository somewhere on your machine:
 
 ```bash
-git clone https://github.com/DevDevvy/vault-globals.git
+git clone <your-repo-url>
 cd vault-globals
 ```
 
