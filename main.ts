@@ -252,6 +252,42 @@ export default class VaultGlobalsPlugin extends Plugin {
     for (const node of nodes) {
       node.nodeValue = this.replaceTokens(node.nodeValue ?? "");
     }
+
+    this.attachCopyButtonsToCodeFences(root);
+  }
+
+  private attachCopyButtonsToCodeFences(root: HTMLElement): void {
+    const codeBlocks = root.querySelectorAll("pre > code");
+
+    codeBlocks.forEach((codeBlock) => {
+      const pre = codeBlock.parentElement;
+      if (!pre || pre.querySelector(".vault-globals-copy-btn")) return;
+
+      pre.classList.add("vault-globals-code-wrapper");
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "vault-globals-copy-btn";
+      button.textContent = "Copy";
+
+      button.addEventListener("click", async () => {
+        const raw = codeBlock.textContent ?? "";
+        const resolved = this.replaceTokens(raw);
+
+        try {
+          await navigator.clipboard.writeText(resolved);
+          button.textContent = "Copied";
+          window.setTimeout(() => {
+            button.textContent = "Copy";
+          }, 1200);
+        } catch (error) {
+          console.error("Vault Globals: failed to copy resolved code", error);
+          new Notice("Vault Globals: could not copy code block.");
+        }
+      });
+
+      pre.appendChild(button);
+    });
   }
 
   private refreshAllOpenMarkdownViews(): void {
