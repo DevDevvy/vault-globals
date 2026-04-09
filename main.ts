@@ -1,5 +1,6 @@
 import {
   App,
+  Menu,
   MarkdownView,
   Notice,
   Plugin,
@@ -27,6 +28,7 @@ interface VaultGlobalsSettings {
   tokenPrefix: string;
   tokenSuffix: string;
   maxResolveDepth: number;
+  showVariableNames: boolean;
 }
 
 const DEFAULT_SETTINGS: VaultGlobalsSettings = {
@@ -34,6 +36,7 @@ const DEFAULT_SETTINGS: VaultGlobalsSettings = {
   tokenPrefix: "{{g:",
   tokenSuffix: "}}",
   maxResolveDepth: 10,
+  showVariableNames: false,
 };
 
 export default class VaultGlobalsPlugin extends Plugin {
@@ -111,6 +114,44 @@ export default class VaultGlobalsPlugin extends Plugin {
           this.triggerRefresh();
           new Notice("Vault Globals: globals file deleted. Globals cleared.");
         }
+      }),
+    );
+
+    // Intercept copy events so highlighted tokens are copied as their resolved
+    // values rather than as raw token syntax.
+    this.registerDomEvent(document, "copy", (evt: ClipboardEvent) => {
+      const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
+      if (!activeView || !evt.clipboardData) return;
+
+      // Only process copies that originate from within this view's content area
+      // so we don't interfere with clipboard operations in other parts of the UI.
+      if (!activeView.contentEl.contains(evt.target as Node)) return;
+
+      const selection = activeView.editor.getSelection();
+      if (selection && this.containsToken(selection)) {
+        evt.clipboardData.setData("text/plain", this.replaceTokens(selection));
+        evt.preventDefault();
+      }
+    });
+
+    // Right-click context menu to toggle between showing variable values (default)
+    // and showing the raw variable names/tokens.
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu: Menu) => {
+        menu.addItem((item) => {
+          item
+            .setTitle(
+              this.settings.showVariableNames
+                ? "Show variable values"
+                : "Show variable names",
+            )
+            .setIcon("code-2")
+            .onClick(async () => {
+              this.settings.showVariableNames = !this.settings.showVariableNames;
+              await this.saveSettings();
+              this.triggerRefresh();
+            });
+        });
       }),
     );
   }
@@ -323,6 +364,12 @@ export default class VaultGlobalsPlugin extends Plugin {
 
         buildDecorations(view: EditorView): DecorationSet {
           const builder = new RangeSetBuilder<Decoration>();
+
+          // When variable-name mode is active, show raw tokens — no decorations.
+          if (plugin.settings.showVariableNames) {
+            return builder.finish();
+          }
+
           const regex = plugin.tokenRegex();
           const selection = view.state.selection;
 
