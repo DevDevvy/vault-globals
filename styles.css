@@ -24,3 +24,26 @@
   color: var(--text-normal);
   border-color: var(--text-muted);
 }
+
+.vault-globals-inline-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.vault-globals-inline-copy-btn {
+  font-size: 0.65rem;
+  line-height: 1;
+  padding: 0.1rem 0.3rem;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt);
+  color: var(--text-muted);
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.vault-globals-inline-copy-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
