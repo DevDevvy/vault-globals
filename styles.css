@@ -25,8 +25,13 @@
   border-color: var(--text-muted);
 }
 
+.vault-globals-inline-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .vault-globals-inline-copy-btn {
-  margin-left: 0.25rem;
   font-size: 0.65rem;
   line-height: 1;
   padding: 0.1rem 0.3rem;

@@ -290,6 +290,14 @@ export default class VaultGlobalsPlugin extends Plugin {
 
       pre.classList.add("vault-globals-code-wrapper");
 
+      const existingButton = pre.querySelector(
+        "button.copy-code-button",
+      ) as HTMLButtonElement | null;
+      if (existingButton) {
+        this.bindResolvedCopyHandler(existingButton, codeBlock, "code block");
+        return;
+      }
+
       if (pre.querySelector(".vault-globals-copy-btn")) return;
       const button = this.createCopyButton("vault-globals-copy-btn");
       this.bindResolvedCopyHandler(button, codeBlock, "code block");
@@ -303,17 +311,17 @@ export default class VaultGlobalsPlugin extends Plugin {
     inlineCodeNodes.forEach((codeNode) => {
       if (codeNode.closest("pre")) return;
       if (!codeNode.textContent?.trim()) return;
-      if (
-        codeNode.nextElementSibling?.classList.contains(
-          "vault-globals-inline-copy-btn",
-        )
-      ) {
+      if (codeNode.parentElement?.classList.contains("vault-globals-inline-copy"))
         return;
-      }
+
+      const wrapper = document.createElement("span");
+      wrapper.className = "vault-globals-inline-copy";
+      codeNode.parentElement?.insertBefore(wrapper, codeNode);
+      wrapper.appendChild(codeNode);
 
       const button = this.createCopyButton("vault-globals-inline-copy-btn");
       this.bindResolvedCopyHandler(button, codeNode, "inline code");
-      codeNode.insertAdjacentElement("afterend", button);
+      wrapper.appendChild(button);
     });
   }
 
@@ -336,28 +344,21 @@ export default class VaultGlobalsPlugin extends Plugin {
     button.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
-      await this.copyResolvedText(button, sourceNode, context);
+
+      const raw = sourceNode.textContent ?? "";
+      const resolved = this.replaceTokens(raw);
+
+      try {
+        await navigator.clipboard.writeText(resolved);
+        button.textContent = "Copied";
+        window.setTimeout(() => {
+          button.textContent = "Copy";
+        }, 1200);
+      } catch (error) {
+        console.error("Vault Globals: failed to copy resolved code", error);
+        new Notice(`Vault Globals: could not copy ${context}.`);
+      }
     });
-  }
-
-  private async copyResolvedText(
-    button: HTMLButtonElement,
-    sourceNode: Element,
-    context: "code block" | "inline code",
-  ): Promise<void> {
-    const raw = sourceNode.textContent ?? "";
-    const resolved = this.replaceTokens(raw);
-
-    try {
-      await navigator.clipboard.writeText(resolved);
-      button.textContent = "Copied";
-      window.setTimeout(() => {
-        button.textContent = "Copy";
-      }, this.copyResetTimeoutMs);
-    } catch (error) {
-      console.error("Vault Globals: failed to copy resolved code", error);
-      new Notice(`Vault Globals: could not copy ${context}.`);
-    }
   }
 
   private refreshAllOpenMarkdownViews(): void {
