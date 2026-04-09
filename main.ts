@@ -344,21 +344,29 @@ export default class VaultGlobalsPlugin extends Plugin {
     button.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopImmediatePropagation();
-
-      const raw = sourceNode.textContent ?? "";
-      const resolved = this.replaceTokens(raw);
-
-      try {
-        await navigator.clipboard.writeText(resolved);
-        button.textContent = "Copied";
-        window.setTimeout(() => {
-          button.textContent = "Copy";
-        }, 1200);
-      } catch (error) {
-        console.error("Vault Globals: failed to copy resolved code", error);
-        new Notice(`Vault Globals: could not copy ${context}.`);
-      }
+      await this.copyResolvedText(button, sourceNode, context);
     });
+  }
+
+  private async copyResolvedText(
+    button: HTMLButtonElement,
+    sourceNode: Element,
+    context: "code block" | "inline code",
+  ): Promise<void> {
+    const raw = sourceNode.textContent ?? "";
+    const resolved = this.replaceTokens(raw);
+    const previousLabel = button.textContent;
+
+    try {
+      await navigator.clipboard.writeText(resolved);
+      button.textContent = "Copied";
+      window.setTimeout(() => {
+        button.textContent = previousLabel ?? "Copy";
+      }, this.copyResetTimeoutMs);
+    } catch (error) {
+      console.error("Vault Globals: failed to copy resolved code", error);
+      new Notice(`Vault Globals: could not copy ${context}.`);
+    }
   }
 
   private refreshAllOpenMarkdownViews(): void {
