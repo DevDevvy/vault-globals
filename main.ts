@@ -41,6 +41,7 @@ export default class VaultGlobalsPlugin extends Plugin {
   globals: GlobalsMap = {};
   private revision = 0;
   private refreshEditorsDebounced!: () => void;
+  private readonly copyResetTimeoutMs = 1200;
 
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -61,6 +62,29 @@ export default class VaultGlobalsPlugin extends Plugin {
     this.registerMarkdownPostProcessor((element: HTMLElement) => {
       this.replaceTokensInRenderedElement(element);
     });
+
+    this.registerDomEvent(
+      document,
+      "click",
+      (event: MouseEvent) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+
+        const nativeCopyButton = target.closest(
+          "button.copy-code-button",
+        ) as HTMLButtonElement | null;
+        if (!nativeCopyButton) return;
+
+        const pre = nativeCopyButton.closest("pre");
+        const code = pre?.querySelector("code");
+        if (!code) return;
+
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        void this.copyResolvedText(nativeCopyButton, code, "code block");
+      },
+      { capture: true },
+    );
 
     this.registerEditorExtension(this.buildEditorExtension());
 
