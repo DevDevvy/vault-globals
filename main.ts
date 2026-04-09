@@ -43,6 +43,9 @@ export default class VaultGlobalsPlugin extends Plugin {
   private refreshEditorsDebounced!: () => void;
   private readonly copyResetTimeoutMs = 1200;
 
+  // Original clipboard method – saved so we can restore on unload.
+  private originalClipboardWriteText!: typeof navigator.clipboard.writeText;
+
   async onload(): Promise<void> {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 
@@ -63,28 +66,16 @@ export default class VaultGlobalsPlugin extends Plugin {
       this.replaceTokensInRenderedElement(element);
     });
 
-    this.registerDomEvent(
-      document,
-      "click",
-      (event: MouseEvent) => {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) return;
-
-        const nativeCopyButton = target.closest(
-          "button.copy-code-button",
-        ) as HTMLButtonElement | null;
-        if (!nativeCopyButton) return;
-
-        const pre = nativeCopyButton.closest("pre");
-        const code = pre?.querySelector("code");
-        if (!code) return;
-
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        void this.copyResolvedText(nativeCopyButton, code, "code block");
-      },
-      { capture: true },
+    // Patch navigator.clipboard.writeText so that ANY clipboard write
+    // (Obsidian's native copy button, context menu, etc.) has tokens
+    // resolved before the text reaches the clipboard.
+    this.originalClipboardWriteText = navigator.clipboard.writeText.bind(
+      navigator.clipboard,
     );
+    navigator.clipboard.writeText = async (text: string): Promise<void> => {
+      const resolved = this.replaceTokens(text);
+      return this.originalClipboardWriteText(resolved);
+    };
 
     this.registerEditorExtension(this.buildEditorExtension());
 
@@ -137,6 +128,14 @@ export default class VaultGlobalsPlugin extends Plugin {
         }
       }),
     );
+  }
+
+  onunload(): void {
+    // Restore the original clipboard method.
+    if (this.originalClipboardWriteText) {
+      navigator.clipboard.writeText =
+        this.originalClipboardWriteText as typeof navigator.clipboard.writeText;
+    }
   }
 
   async saveSettings(): Promise<void> {
@@ -251,7 +250,7 @@ export default class VaultGlobalsPlugin extends Plugin {
     return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
-  private containsToken(value: string): boolean {
+  containsToken(value: string): boolean {
     return (
       value.includes(this.settings.tokenPrefix) &&
       value.includes(this.settings.tokenSuffix)
@@ -290,12 +289,13 @@ export default class VaultGlobalsPlugin extends Plugin {
 
       pre.classList.add("vault-globals-code-wrapper");
 
-      const existingButton = pre.querySelector(
+      // Hide Obsidian's native copy button – it reads from the raw
+      // source markdown and would copy unresolved tokens.
+      const nativeBtn = pre.querySelector(
         "button.copy-code-button",
       ) as HTMLButtonElement | null;
-      if (existingButton) {
-        this.bindResolvedCopyHandler(existingButton, codeBlock, "code block");
-        return;
+      if (nativeBtn) {
+        nativeBtn.style.display = "none";
       }
 
       if (pre.querySelector(".vault-globals-copy-btn")) return;
@@ -413,7 +413,8 @@ export default class VaultGlobalsPlugin extends Plugin {
       }
     }
 
-    return ViewPlugin.fromClass(
+    // ViewPlugin: shows resolved values in place of tokens.
+    const viewPlugin = ViewPlugin.fromClass(
       class {
         decorations: DecorationSet;
         private seenRevision: number;
@@ -450,12 +451,14 @@ export default class VaultGlobalsPlugin extends Plugin {
               const start = from + match.index;
               const end = start + match[0].length;
 
-              // Skip tokens that overlap any cursor/selection so the raw
-              // text remains visible and editable when the user clicks in.
-              const overlapsSelection = selection.ranges.some(
-                (r) => r.from <= end && r.to >= start,
+              // Only remove the decoration when the cursor (collapsed
+              // selection) sits inside the token so the user can edit.
+              // Non-collapsed selections keep the resolved value visible
+              // so that copy operations show/get the resolved text.
+              const cursorInside = selection.ranges.some(
+                (r) => r.empty && r.from >= start && r.from <= end,
               );
-              if (overlapsSelection) continue;
+              if (cursorInside) continue;
 
               const resolved = plugin.globals[match[1]] ?? match[0];
               builder.add(
@@ -476,6 +479,49 @@ export default class VaultGlobalsPlugin extends Plugin {
         decorations: (value) => value.decorations,
       },
     );
+
+    // Intercept copy/cut at the CM6 level so the clipboard always
+    // receives resolved values instead of raw {{g:…}} tokens.
+    const clipboardHandler = EditorView.domEventHandlers({
+      copy(event: ClipboardEvent, view: EditorView) {
+        const { state } = view;
+        const ranges = state.selection.ranges;
+        const parts = ranges.map((r) =>
+          state.doc.sliceString(r.from, r.to),
+        );
+        const combined = parts.join(state.lineBreak);
+
+        if (!combined || !plugin.containsToken(combined)) return false;
+
+        const resolved = plugin.replaceTokens(combined);
+        if (resolved === combined) return false;
+
+        event.preventDefault();
+        event.clipboardData?.setData("text/plain", resolved);
+        return true;
+      },
+
+      cut(event: ClipboardEvent, view: EditorView) {
+        const { state } = view;
+        const ranges = state.selection.ranges;
+        const parts = ranges.map((r) =>
+          state.doc.sliceString(r.from, r.to),
+        );
+        const combined = parts.join(state.lineBreak);
+
+        if (!combined || !plugin.containsToken(combined)) return false;
+
+        const resolved = plugin.replaceTokens(combined);
+        if (resolved === combined) return false;
+
+        event.preventDefault();
+        event.clipboardData?.setData("text/plain", resolved);
+        view.dispatch(state.replaceSelection(""));
+        return true;
+      },
+    });
+
+    return [viewPlugin, clipboardHandler];
   }
 }
 
