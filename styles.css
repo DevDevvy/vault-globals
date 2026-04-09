@@ -1,3 +1,26 @@
 .vault-globals-inline-value {
   color: var(--text-normal);
 }
+
+.vault-globals-code-wrapper {
+  position: relative;
+}
+
+.vault-globals-copy-btn {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  z-index: 2;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.45rem;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.vault-globals-copy-btn:hover {
+  color: var(--text-normal);
+  border-color: var(--text-muted);
+}
