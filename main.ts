@@ -39,6 +39,7 @@ const DEFAULT_SETTINGS: VaultGlobalsSettings = {
 export default class VaultGlobalsPlugin extends Plugin {
   settings: VaultGlobalsSettings = DEFAULT_SETTINGS;
   globals: GlobalsMap = {};
+  showVariableNames = false;
   private revision = 0;
   private refreshEditorsDebounced!: () => void;
 
@@ -111,6 +112,24 @@ export default class VaultGlobalsPlugin extends Plugin {
           this.triggerRefresh();
           new Notice("Vault Globals: globals file deleted. Globals cleared.");
         }
+      }),
+    );
+
+    this.registerEvent(
+      this.app.workspace.on("editor-menu", (menu) => {
+        menu.addItem((item) => {
+          item
+            .setTitle(
+              this.showVariableNames
+                ? "Show variable values"
+                : "Show variable names",
+            )
+            .setIcon(this.showVariableNames ? "eye" : "tag")
+            .onClick(() => {
+              this.showVariableNames = !this.showVariableNames;
+              this.triggerRefresh();
+            });
+        });
       }),
     );
   }
@@ -313,7 +332,6 @@ export default class VaultGlobalsPlugin extends Plugin {
           if (
             update.docChanged ||
             update.viewportChanged ||
-            update.selectionSet ||
             this.seenRevision !== nextRevision
           ) {
             this.seenRevision = nextRevision;
@@ -323,8 +341,14 @@ export default class VaultGlobalsPlugin extends Plugin {
 
         buildDecorations(view: EditorView): DecorationSet {
           const builder = new RangeSetBuilder<Decoration>();
+
+          // When "show variable names" mode is active, return no decorations
+          // so the raw tokens are visible.
+          if (plugin.showVariableNames) {
+            return builder.finish();
+          }
+
           const regex = plugin.tokenRegex();
-          const selection = view.state.selection;
 
           for (const { from, to } of view.visibleRanges) {
             const text = view.state.doc.sliceString(from, to);
@@ -334,13 +358,6 @@ export default class VaultGlobalsPlugin extends Plugin {
             while ((match = regex.exec(text)) !== null) {
               const start = from + match.index;
               const end = start + match[0].length;
-
-              // Skip tokens that overlap any cursor/selection so the raw
-              // text remains visible and editable when the user clicks in.
-              const overlapsSelection = selection.ranges.some(
-                (r) => r.from <= end && r.to >= start,
-              );
-              if (overlapsSelection) continue;
 
               const resolved = plugin.globals[match[1]] ?? match[0];
               builder.add(
